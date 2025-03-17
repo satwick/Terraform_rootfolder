@@ -1,0 +1,192 @@
+ # Terraform Spoke Environment Deployment Structure
+
+## Usage
+
+Basic usage of this module is as follows:
+
+```hcl
+module "example" {
+       source  = "<module-path>"
+  
+     # Required variables
+}
+```
+
+## Module Components:
+
+**Module Name:** Each module is given a unique name.
+
+**Source:** The `source` attribute specifies where Terraform should retrieve the module. In this case, it's sourced from a Git repository with a specific version tag.
+
+**Input Variables:** The module accepts various input parameters to configure the resources it creates. These can be hardcoded values, variables, or references to other resources.
+
+**Resource References:** Modules can reference other resources or modules in the main configuration, allowing for interdependent resource creation.
+
+**Dependency Management:** The `depends_on` attribute  can be used to explicitly define dependencies between resources.
+
+This structure allows for modular, reusable, and maintainable infrastructure-as-code, enabling consistent resource provisioning across different environments or projects.
+
+## Providers
+
+| Name | Version |
+|------|---------|
+| azurerm | 3.73.0 |
+
+## Locals
+
+| Name | DNS Zones |
+|------|-----------|
+| azurecr-io | privatelink.azurecr.io |
+| blob-core-windows-net | privatelink.blob.core.windows.net |
+| vaultcore-azure-net | privatelink.blob.core.windows.net |
+| sql-server-net | privatelink.database.windows.net |
+| postgres-server-net | privatelink.postgres.database.azure.com |
+
+
+## Resources
+
+| Name | Type |
+|------|------|
+| [azurerm_private_dns_zone_virtual_network_link.private_dns_network_links](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/private_dns_zone_virtual_network_link) | resource |
+| [azurerm_resource_group.devspoke](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/resource_group) | resource |
+| [azurerm_private_dns_zone.sql-server-net](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/data-sources/private_dns_zone) | data source |
+| [azurerm_private_dns_zone.private_dns_zones](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/private_dns_zone) | resource |
+| [azurerm_role_assignment.vnet_contributor](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/role_assignment) | resource |
+| [azurerm_subnet_route_table_association.devspoke_support](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/subnet_route_table_association) | resource |
+| [azurerm_subnet_route_table_association.devspoke_aks](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/subnet_route_table_association) | resource |
+
+
+## Modules
+
+| Name | Source | Version |
+|------|--------|---------|
+| devspoke_vnet | git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-vnet.git| v1.0.0 |
+| devspoke_route_table | git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-routetable.git | v1.0.0 |
+| devspoke_storage | git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-storageaccount.git | v1.1.0 |
+| devspoke_infox_storage | git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-storageaccount.git | v1.1.0 |
+| devspoke_treasure_storage | git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-storageaccount.git | v1.1.0 |
+| devspoke_montaviz_storage | git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-storageaccount.git |v1.1.0 |
+| support_vm_linux | git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-vm_linux.git | v1.1.0 |
+| support_vm_windows | git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-vm_windows.git | v1.1.0 |
+| devspoke_keyvault | git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-keyvault.git | v1.1.0 |
+| montaviz_keyvault | git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-keyvault.git | v1.1.0 |
+| moko_keyvault | git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-keyvault.git | v1.1.0 |
+| devspoke_acr_privateendpoint | git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-acr-pe.git | v1.0.0 |
+| devspoke_sql_server | git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-sql_server.git | v1.1.0 |
+| devspoke_sql_server_pe | git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-privateendpoint.git | v1.0.0 |
+| devspoke_postgresflex | git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-postgresflex.git | v1.1.0 |
+| devspoke_appgw | git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-agw.git | v1.1.0 |
+| devspoke_appgw_pe | git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-agw-pe.git | v1.0.0 |
+| devspoke_aks | git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-aks.git | v1.1.0 |
+
+
+<!-- markdownlint-disable MD033 -->
+## Inputs
+
+| Name | Description | Type | Default | Required |
+|------|-------------|------|---------|:--------:|
+| location | Region for deployment | `string` | `"West Europe"` | no |
+| resource_group_name | Name of the Resource group | `string` | n/a | yes |
+| tags | Tags for resources | `map(string)` | n/a | yes |
+| environment | Name of the spoke environment being provisioned DEV?INT?PROD | `string` | n/a | yes |
+| devspoke_vnet_name | Name of the devspoke VNET | `string` | n/a | yes |
+| devspoke_vnet_address_space | The address space of the devspoke virtual network | `list(string)` | n/a | yes |
+| database_snet_address_prefix | The address prefix of the database subnet | `string` | n/a | yes |
+| support_snet_address_prefix | The address prefix of the support subnet | `string` | n/a | yes |
+| aks_snet_address_prefix | The address prefix of the aks subnet | `string` | n/a | yes |
+| gateway_snet_address_prefix | The address prefix of the gateway subnet | `string` | n/a | yes |
+| route_table_name | The name of the Route Table | `string` | n/a | yes |
+| devspoke_route_table_routes | The list of route definitions applied to the custom route table | `map(any)` | `null` | no |
+| vm_linux_name | The name of the Linux Virtual Machine | `string` | n/a | yes |
+| vm_linux_username | The username for Linux Virtual Machine | `string` | n/a | yes |
+| vm_linux_password | The password for Linux Virtual Machine | `string` | n/a | yes |
+| custom_data_path | The Base64-Encoded Custom Data path which should be used for this Virtual Machine | `string` | n/a | yes |
+| vm_windows_name | The name of the Windows Virtual Machine | `string` | n/a | yes |
+| vm_windows_username | The username for Windows Virtual Machine | `string` | n/a | yes |
+| vm_windows_password | The password for Windows Virtual Machine | `string` | n/a | yes |
+| devspoke_storage_name | Name of the storage account | `string` | n/a | yes |
+| devspoke_storage_account_tier | Specifies the access tier | `string` | `"Standard"` | no |
+| devspoke_storage_account_kind | Defines the Kind of storage account. Defaults to StorageV2 | `string` | `"StorageV2"` | no |
+| devspoke_storage_account_replication_type | Specifies the data replication strategy for the storage account | `string` | `"LRS"` | no |
+| devspoke_storage_containers | List of container names that will be created in the storage account | `list(string)` | n/a | yes |
+| devspoke_storage_private_endpoint_name | Name of storage account private endpoint | `string` | n/a | yes |
+| devspoke_infox_storage_name | Name of the storage account for infox application | `string` | n/a | yes |
+| devspoke_infox_storage_account_tier | Specifies the access tier for the infox application's storage account | `string` | `"Standard"` | no |
+| devspoke_infox_storage_account_kind | Defines the Kind of account for infox application. Defaults to StorageV2 | `string` | `"StorageV2"` | no |
+| devspoke_infox_storage_account_replication_type | Specifies the data replication strategy for the Infox application's storage account | `string` | `"LRS"` | no |
+| devspoke_infox_storage_containers | List of container names that will be created in the storage account for infox application | `list(string)` | n/a | yes |
+| devspoke_infox_storage_private_endpoint_name | Name of storage private endpoint for infox application | `string` | n/a | yes |
+| devspoke_treasure_storage_name | Name of the storage account for treasure | `string` | n/a | yes |
+| devspoke_treasure_storage_account_tier | Specifies the access tier for treasure | `string` | `"Standard"` | no |
+| devspoke_treasure_storage_account_kind | Defines the Kind of account for treasure. Defaults to StorageV2 | `string` | `"StorageV2"` | no |
+| devspoke_treasure_storage_account_replication_type | Specifies the data replication strategy for treasure | `string` | `"LRS"` | no |
+| devspoke_treasure_storage_containers | List of container names that will be created in the storage account for treasure | `list(string)` | n/a | yes |
+| devspoke_treasure_storage_private_endpoint_name | Name of storage private endpoint for treasure | `string` | n/a | yes |
+| devspoke_montaviz_storage_name | Name of the storage account for montaviz | `string` | n/a | yes |
+| devspoke_montaviz_storage_account_tier | Specifies the access tier for montaviz | `string` | `"Standard"` | no |
+| devspoke_montaviz_storage_account_kind | Defines the Kind of account for montaviz. Defaults to StorageV2 | `string` | `"StorageV2"` | no |
+| devspoke_montaviz_storage_account_replication_type | Specifies the data replication strategy for montaviz | `string` | `"LRS"` | no |
+| devspoke_montaviz_storage_containers | List of container names that will be created in the storage account for montaviz | `list(string)` | n/a | yes |
+| devspoke_montaviz_storage_private_endpoint_name | Name of storage private endpoint for montaviz | `string` | n/a | yes |
+| devspoke_keyvault_name | Name of keyvault | `string` | n/a | yes |
+| devspoke_keyvault_sku_name | Name of keyvault sku | `string` | n/a | yes |
+| devspoke_keyvault_soft_delete_retention_days | Number of retention days after soft delete | `number` | n/a | yes |
+| devspoke_keyvault_private_endpoint_name | Name of Private Endpoint of keyvault | `string` | n/a | yes |
+| devspoke_keyvault_public_network_access | Public network access of devspoke keyvault | `bool` | n/a | yes |
+| montaviz_keyvault_name | Name of keyvault | `string` | n/a | yes |
+| montaviz_keyvault_sku_name | Name of keyvault sku | `string` | n/a | yes |
+| montaviz_keyvault_soft_delete_retention_days | Number of retention days after soft delete | `number` | n/a | yes |
+| montaviz_keyvault_private_endpoint_name | Name of Private Endpoint of keyvault | `string` | n/a | yes |
+| montaviz_keyvault_public_network_access | Public network access of montaviz keyvault | `bool` | n/a | yes |
+| moko_keyvault_name | Name of keyvault | `string` | n/a | yes |
+| moko_keyvault_sku_name | Name of keyvault sku | `string` | n/a | yes |
+| moko_keyvault_soft_delete_retention_days | Number of retention days after soft delete | `number` | n/a | yes |
+| moko_keyvault_private_endpoint_name | Name of Private Endpoint of keyvault | `string` | n/a | yes |
+| moko_keyvault_public_network_access | Public network access of moko keyvault | `bool` | n/a | yes |
+| sql_server_name | The name of the Azure SQL Server | `string` | n/a | yes |
+| sql_server_administrator_login | SQL Server administrator login | `string` | n/a | yes |
+| sql_server_administrator_login_password | SQL Server administrator login password | `string` | n/a | yes |
+| devspoke_sql_hub_private_endpoint_name | Name of SQL_server private endpoint for hub | `string` | n/a | yes |
+| psql_name | Name of the PostgreSQL Database flexi Server | `string` | n/a | yes |
+| psql_username | Name of the PostgreSQL Database flexi Server user | `string` | n/a | yes |
+| psql_password | Password of the PostgreSQL Database flexi Server user | `string` | n/a | yes |
+| psql_sku_name | Name of PostgreSQL Database flexi Server SKU | `string` | n/a | yes |
+| psql_version | Version of PostgreSQL Database flexi Server | `string` | n/a | yes |
+| psql_storage_mb | Storage of PostgreSQL Database flexi Server SKU in MB | `number` | n/a | yes |
+| psql_backup_retention_days | The backup retention days for the PostgreSQL Flexible Server | `number` | n/a | yes |
+| psql_zone | The Availability Zone in which the PostgreSQL Flexible Server should be located | `number` | n/a | yes |
+| application_gateway_name | Name of application gateway | `string` | n/a | yes |
+| appgw_private_ip_address | Private ip address of application gateway | `string` | n/a | yes |
+| appgw_public_ip_address_id | ID of Public IP address of application gateway | `string` | `null` | no |
+| shared_key_vault_name | Name of the shared key vault | `string` | n/a | yes |
+| shared_key_vault_resource_group | Resource Group of shared keyvault | `string` | n/a | yes |
+| shared_certificate_name | Certificate name in the shared keyvault | `string` | n/a | yes |
+| devspoke_appgw_private_endpoint_name | Name of appgw private endpoint | `string` | n/a | yes |
+| target_subscription_id | Subscription ID of target vnet | `string` | n/a | yes |
+| client_id_target | Client ID for service principal in target subscription | `string` | n/a | yes |
+| client_secret_target | Client Secret for service principal in target subscription | `string` | n/a | yes |
+| tenant_id_target | Tenant ID for service principal in target subscription | `string` | n/a | yes |
+| target_resource_group_name | Resource group name of the target Vnet | `string` | n/a | yes |
+| target_vnet_name | Target vnet name | `string` | n/a | yes |
+| target_snet_name | Target subnet name | `string` | n/a | yes |
+| pe_resource_group_name | Resource group name of private endpoint | `string` | n/a | yes |
+| pe_resource_group_location | Region of the resource group where private endpoint is deployed | `string` | n/a | yes |
+| sql_server_subresource_name | A subresource name which the Private Endpoint is able to connect to sql server | `list(string)` | n/a | yes |
+| build_resource_group_name | Name of the existing build resource group where the Azure Container Registry (ACR) is located | `string` | n/a | yes |
+| build_acr_name | Name of the existing Azure Container registry | `string` | n/a | yes |
+| acr_build_private_endpoint_name | Name of private endpoint of ACR | `string` | n/a | yes |
+| managed_identity_name | Name of the Managed Identity | `string` | n/a | yes |
+| aks_name | Name of Azure Kubernetes Service | `string` | n/a | yes |
+| aks_kubernetes_version | Version of Azure Kubernetes Service cluster | `string` | n/a | yes |
+| aks_private_cluster | Should the Azure Kubernetes Cluster be deployed in Private Mode? | `bool` | n/a | yes |
+| aks_addons | Defines which addons will be activated. | `object({ azure_policy = bool })` | n/a | yes |
+| azure_ad_rbac_enabled | RBAC enabled | `bool` | n/a | yes |
+| aks_default_node_pool | Defines the default node pool information | `object({ name = string, node_count = number, vm_size = string, max_pods = number, zones = list(string), labels = map(string), taints = list(string), cluster_auto_scaling = bool, cluster_auto_scaling_min_count = number, cluster_auto_scaling_max_count = number })` | n/a | yes |
+| aks_additional_node_pools | Defines additional node pools that are added besides the default node pool. | `map(object({ node_count = number, node_os = string, vm_size = string, max_pods = number, zones = list(string), labels = map(string), taints = list(string), cluster_auto_scaling = bool, cluster_auto_scaling_min_count = number, cluster_auto_scaling_max_count = number }))` | n/a | yes |
+
+This table provides a comprehensive list of all input variables for the Terraform configuration, including their names, descriptions, types, default values (where applicable), and whether they are required or optional.
+
+## Outputs
+
+No outputs.
+<!-- markdownlint-disable MD047 -->
