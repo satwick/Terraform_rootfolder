@@ -1,17 +1,69 @@
 ####################
+# Locals           #
+####################
+
+locals {
+  private_dns_zones = {
+    vaultcore-azure-net = "privatelink.vaultcore.azure.net"
+  }
+
+  keyvault_modules = {
+    iq4bus = {
+      id                    = module.iq4bus_keyvault.id
+      private_endpoint_name = var.iq4bus_keyvault_intprivate_endpoint_name
+      dns_zone_id           = data.azurerm_private_dns_zone.intvaultcore-azure-net.id
+    },
+    montaviz = {
+      id                    = module.montaviz_keyvault.id
+      private_endpoint_name = var.montaviz_keyvault_intprivate_endpoint_name
+      dns_zone_id           = data.azurerm_private_dns_zone.intvaultcore-azure-net.id
+    }
+
+    moko = {
+      id                    = module.moko_keyvault.id
+      private_endpoint_name = var.moko_keyvault_intprivate_endpoint_name
+      dns_zone_id           = data.azurerm_private_dns_zone.intvaultcore-azure-net.id
+    }
+
+    infox = {
+      id                    = module.infox_keyvault.id
+      private_endpoint_name = var.infox_keyvault_intprivate_endpoint_name
+      dns_zone_id           = data.azurerm_private_dns_zone.intvaultcore-azure-net.id
+    }
+
+    prodapps = {
+      id                    = module.prodapps_keyvault.id
+      private_endpoint_name = var.prodapps_keyvault_intprivate_endpoint_name
+      dns_zone_id           = data.azurerm_private_dns_zone.intvaultcore-azure-net.id
+    }
+  }
+
+
+  # List of keyvaults for easier managed identity assignment
+  keyvaults_map = {
+    for name, kv in local.keyvault_modules : name => kv.id
+  }
+
+}
+
+
+####################
 # Provider section #
 ####################
 
 terraform {
+   backend "azurerm" {}
+
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~>3.73.0"
+      version = "~>3.98.0"
     }
   }
 }
 
 provider "azurerm" {
+  skip_provider_registration = "true"
   features {
     key_vault {
       purge_soft_deleted_secrets_on_destroy = true
@@ -20,105 +72,363 @@ provider "azurerm" {
   }
 }
 
-#https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/data-sources/client_config
-data "azurerm_client_config" "current" {}
+
+#####################
+# Data section 			#
+#####################
+
+# https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/data-sources/resource_group
+
+data "azurerm_resource_group" "spoke" {
+  name = var.spoke_resource_group
+}
+
+# https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/data-sources/virtual_network
+data "azurerm_virtual_network" "spoke_vnet" {
+  name                = var.spoke_vnet_name
+  resource_group_name = data.azurerm_resource_group.spoke.name
+}
+
+# https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/data-sources/subnet
+data "azurerm_subnet" "support_spoke" {
+  name                 = var.spoke_subnet
+  virtual_network_name = data.azurerm_virtual_network.spoke_vnet.name
+  resource_group_name  = data.azurerm_resource_group.spoke.name
+}
+
+# https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/data-sources/private_dns_zone
+data "azurerm_private_dns_zone" "vaultcore-azure-net" {
+  name                = local.private_dns_zones["vaultcore-azure-net"]
+  resource_group_name = data.azurerm_resource_group.spoke.name
+}
+
+# https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/data-sources/resource_group
+data "azurerm_resource_group" "spokeint" {
+  name = var.spokeint_resource_group
+}
+
+# https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/data-sources/virtual_network
+data "azurerm_virtual_network" "spoke_vnet_int" {
+  name                = var.spoke_vnetint_name
+  resource_group_name = data.azurerm_resource_group.spokeint.name
+}
+
+# https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/data-sources/subnet
+data "azurerm_subnet" "support_int_spoke" {
+  name                 = var.intspoke_subnet
+  virtual_network_name = data.azurerm_virtual_network.spoke_vnet_int.name
+  resource_group_name  = data.azurerm_resource_group.spokeint.name
+}
+
+# https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/data-sources/private_dns_zone
+data "azurerm_private_dns_zone" "intvaultcore-azure-net" {
+  name                = local.private_dns_zones["vaultcore-azure-net"]
+  resource_group_name = data.azurerm_resource_group.spokeint.name
+}
 
 #####################
 # Resources section #
 #####################
 
-#https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/key_vault
-resource "azurerm_key_vault" "key-vault" {
-  
-  name                          = var.name
-  location                      = var.location
-  resource_group_name           = var.resource_group_name
-  tenant_id                     = data.azurerm_client_config.current.tenant_id
-  sku_name                      = var.sku_name
-  soft_delete_retention_days    = var.soft_delete_retention_days
-  purge_protection_enabled      = true
-  public_network_access_enabled = var.public_network_access
-  enable_rbac_authorization     = var.enable_rbac_authorization
-  depends_on                    = [var.keyvault_depends_on]
-    network_acls {
-    bypass                     = var.keyvault_network_acls.bypass
-    default_action             = var.keyvault_network_acls.default_action
-    ip_rules                   = var.keyvault_network_acls.ip_rules
-    virtual_network_subnet_ids = var.keyvault_network_acls.virtual_network_subnet_ids
-  }
-  
+# https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/data-sources/resource_group
+resource "azurerm_resource_group" "keyvaultrg" {
+  name     = var.keyvault_resource_group
+  location = var.keyvault_location
+  tags     = var.keyvault_tags
 }
 
-#https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/private_endpoint
-resource "azurerm_private_endpoint" "endpoint" {
-  name                          = var.private_endpoint_name
-  resource_group_name           = var.resource_group_name
-  location                      = var.location
-  subnet_id                     = var.subnet_id
-  custom_network_interface_name = "${var.private_endpoint_name}-nic"
+# https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/user_assigned_identity
+resource "azurerm_user_assigned_identity" "keyvault_identity" {
+  name                = var.Managedidentity_name
+  location            = azurerm_resource_group.keyvaultrg.location
+  resource_group_name = azurerm_resource_group.keyvaultrg.name
+}
 
-  private_dns_zone_group {
-    name                 = "default"
-    private_dns_zone_ids = var.private_dns_zone_ids
+
+module "iq4bus_keyvault" {
+  source = "../../module/keyvault"
+
+  name                       = var.iq4bus_keyvault_name
+  location                   = azurerm_resource_group.keyvaultrg.location
+  resource_group_name        = azurerm_resource_group.keyvaultrg.name
+  sku_name                   = var.iq4bus_keyvault_sku_name
+  soft_delete_retention_days = var.iq4bus_keyvault_soft_delete_retention_days
+  private_endpoint_name      = var.iq4bus_keyvault_private_endpoint_name
+  enable_rbac_authorization  = var.iq4bus_keyvault_enable_rbac_authorization
+  private_dns_zone_ids = [
+    data.azurerm_private_dns_zone.vaultcore-azure-net.id
+  ]
+  subnet_id             = data.azurerm_subnet.support_spoke.id
+  public_network_access = var.iq4bus_keyvault_public_network_access
+  keyvault_depends_on   = [azurerm_resource_group.keyvaultrg]
+  keyvault_network_acls = {
+    bypass         = var.keyvault_network_acls.bypass
+    default_action = var.keyvault_network_acls.default_action
+    ip_rules       = var.keyvault_network_acls.ip_rules
+    virtual_network_subnet_ids = [
+      data.azurerm_subnet.support_spoke.id,
+      data.azurerm_subnet.support_int_spoke.id
+    ]
   }
+}
+
+module "montaviz_keyvault" {
+  source = "../../module/keyvault"
+
+  name                       = var.montaviz_keyvault_name
+  location                   = azurerm_resource_group.keyvaultrg.location
+  resource_group_name        = azurerm_resource_group.keyvaultrg.name
+  sku_name                   = var.montaviz_keyvault_sku_name
+  soft_delete_retention_days = var.montaviz_keyvault_soft_delete_retention_days
+  private_endpoint_name      = var.montaviz_keyvault_private_endpoint_name
+  enable_rbac_authorization  = var.montaviz_keyvault_enable_rbac_authorization
+  private_dns_zone_ids = [
+    data.azurerm_private_dns_zone.vaultcore-azure-net.id
+  ]
+  subnet_id             = data.azurerm_subnet.support_spoke.id
+  public_network_access = var.montaviz_keyvault_public_network_access
+  keyvault_depends_on   = [module.iq4bus_keyvault]
+  keyvault_network_acls = {
+    bypass         = var.keyvault_network_acls.bypass
+    default_action = var.keyvault_network_acls.default_action
+    ip_rules       = var.keyvault_network_acls.ip_rules
+    virtual_network_subnet_ids = [
+      data.azurerm_subnet.support_spoke.id,
+      data.azurerm_subnet.support_int_spoke.id
+    ]
+  }
+}
+
+ module "moko_keyvault" {
+   source = "git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-keyvault.git?ref=v1.1.2"
+
+  name                       = var.moko_keyvault_name
+  location                   = azurerm_resource_group.keyvaultrg.location
+  resource_group_name        = azurerm_resource_group.keyvaultrg.name
+  sku_name                   = var.moko_keyvault_sku_name
+  soft_delete_retention_days = var.moko_keyvault_soft_delete_retention_days
+  private_endpoint_name      = var.moko_keyvault_private_endpoint_name
+  enable_rbac_authorization  = var.moko_keyvault_enable_rbac_authorization
+  private_dns_zone_ids = [
+    data.azurerm_private_dns_zone.vaultcore-azure-net.id
+  ]
+  subnet_id             = data.azurerm_subnet.support_spoke.id
+  public_network_access = var.moko_keyvault_public_network_access
+  keyvault_depends_on   = [module.montaviz_keyvault]
+    keyvault_network_acls = {
+    bypass         = var.keyvault_network_acls.bypass
+    default_action = var.keyvault_network_acls.default_action
+    ip_rules       = var.keyvault_network_acls.ip_rules
+}
+}
+
+module "infox_keyvault" {
+  source = "git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-keyvault.git?ref=v1.1.2"
+
+  name                       = var.infox_keyvault_name
+  location                   = azurerm_resource_group.keyvaultrg.location
+  resource_group_name        = azurerm_resource_group.keyvaultrg.name
+  sku_name                   = var.infox_keyvault_sku_name
+  soft_delete_retention_days = var.infox_keyvault_soft_delete_retention_days
+  private_endpoint_name      = var.infox_keyvault_private_endpoint_name
+  enable_rbac_authorization  = var.infox_keyvault_enable_rbac_authorization
+  private_dns_zone_ids = [
+    data.azurerm_private_dns_zone.vaultcore-azure-net.id
+  ]
+  subnet_id             = data.azurerm_subnet.support_spoke.id
+  public_network_access = var.infox_keyvault_public_network_access
+  keyvault_depends_on   = [module.moko_keyvault]
+      keyvault_network_acls = {
+    bypass         = var.keyvault_network_acls.bypass
+    default_action = var.keyvault_network_acls.default_action
+    ip_rules       = var.keyvault_network_acls.ip_rules
+}
+}
+
+module "prodapps_keyvault" {
+  source = "git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-keyvault.git?ref=v1.1.2"
+
+  name                       = var.prodapps_keyvault_name
+  location                   = azurerm_resource_group.keyvaultrg.location
+  resource_group_name        = azurerm_resource_group.keyvaultrg.name
+  sku_name                   = var.prodapps_keyvault_sku_name
+  soft_delete_retention_days = var.prodapps_keyvault_soft_delete_retention_days
+  private_endpoint_name      = var.prodapps_keyvault_private_endpoint_name
+  enable_rbac_authorization  = var.prodapps_keyvault_enable_rbac_authorization
+  private_dns_zone_ids = [
+    data.azurerm_private_dns_zone.vaultcore-azure-net.id
+  ]
+  subnet_id             = data.azurerm_subnet.support_spoke.id
+  public_network_access = var.prodapps_keyvault_public_network_access
+  keyvault_depends_on   = [module.infox_keyvault]
+  keyvault_network_acls = {
+    bypass         = var.keyvault_network_acls.bypass
+    default_action = var.keyvault_network_acls.default_action
+    ip_rules       = var.keyvault_network_acls.ip_rules
+}
+}
+
+
+
+##############################
+# Private Endpoint Resource  #
+##############################
+
+#https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/private_endpoint
+resource "azurerm_private_endpoint" "keyvault_endpoints" {
+  for_each                      = local.keyvault_modules
+  name                          = each.value.private_endpoint_name
+  location                      = var.intrg_location
+  resource_group_name           = data.azurerm_resource_group.spokeint.name
+  subnet_id                     = data.azurerm_subnet.support_int_spoke.id
+  custom_network_interface_name = "${each.value.private_endpoint_name}-nic"
 
   private_service_connection {
-    name                           = "${var.private_endpoint_name}psc"
-    private_connection_resource_id = azurerm_key_vault.key-vault.id
+    name                           = "${each.value.private_endpoint_name}-psc"
+    private_connection_resource_id = each.value.id
     is_manual_connection           = false
     subresource_names              = ["vault"]
   }
+
+  private_dns_zone_group {
+    name                 = "default"
+    private_dns_zone_ids = [each.value.dns_zone_id]
+  }
+}
+
+###############################
+# Role Assignment             #
+###############################
+
+# https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/role_assignment
+resource "azurerm_role_assignment" "keyvault_secret_user" {
+  for_each             = local.keyvaults_map
+  scope                = each.value
+  role_definition_name = var.role_definition_name
+  principal_id         = azurerm_user_assigned_identity.keyvault_identity.principal_id
+
+  depends_on = [module.iq4bus_keyvault]
 }
 
 
+ # Terraform Spoke Environment Deployment Structure
 
-# Azure Key Vault
+## Usage
 
-## Introduction
+Basic usage of this module is as follows:
 
-This module contains Terraform code to provision and manage an Azure Key Vault. Azure Key Vault is a cloud service for securely managing and protecting sensitive information such as secrets, keys, and certificates.
+```hcl
+module "example" {
+       source  = "<module-path>"
+  
+     # Required variables
+}
+```
 
-<!-- BEGIN_TF_DOCS -->
-## Requirements
+## Module Components:
 
-| Name | Version |
-|------|---------|
-| <a name="requirement_azurerm"></a> [azurerm](#requirement\_azurerm) | ~>3.73.0 |
+**Module Name:** Each module is given a unique name.
+
+**Source:** The `source` attribute specifies where Terraform should retrieve the module. In this case, it's sourced from a Git repository with a specific version tag.
+
+**Input Variables:** The module accepts various input parameters to configure the resources it creates. These can be hardcoded values, variables, or references to other resources.
+
+**Resource References:** Modules can reference other resources or modules in the main configuration, allowing for interdependent resource creation.
+
+**Dependency Management:** The `depends_on` attribute  can be used to explicitly define dependencies between resources.
+
+This structure allows for modular, reusable, and maintainable infrastructure-as-code, enabling consistent resource provisioning across different environments or projects.
 
 ## Providers
 
 | Name | Version |
 |------|---------|
-| <a name="provider_azurerm"></a> [azurerm](#provider\_azurerm) | ~>3.73.0 |
+| azurerm | 3.98.0 |
 
-## Modules
+## Locals
 
-No modules.
+| Name | DNS Zones |
+|------|-----------|
+| vaultcore-azure-net | privatelink.blob.core.windows.net |
+
+## Data-Source
+| Name | Type |
+|------|------|
+| [azurerm_resource_group.spoke](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/data-sources/resource_group) | Data-Source |
+| [azurerm_virtual_network.spoke](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/data-sources/virtual_network) | Data-Source |
+| [azurerm_subnet](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/data-sources/subnet) | Data-Source |
+| [azurerm_private_dns_zone](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/data-sources/private_dns_zone) | Data-Source |
+
+
 
 ## Resources
 
 | Name | Type |
 |------|------|
-| [azurerm_private_endpoint.endpoint](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/private_endpoint) | resource |
-| [azurerm_key_vault.keyvault] (https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/key_vault) | resource |
-| [azurerm_key_vault_access_policy] (https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/key_vault_access_policy) | resource |
-| [azurerm_client_config.current_config] (https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/data-sources/client_config) | data source |
+| [azurerm_resource_group.devspoke](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/resource_group) | resource |
+| [azurerm_user_assigned_identity](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/user_assigned_identity) | resource |
+| [azurerm_role_assignment](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/role_assignme) | resource |
 
+## Modules
+
+| Name | Source | Version |
+|------|--------|---------|
+| iq4bus_keyvault | git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-keyvault.git | v1.1.2 |
+| montaviz_keyvault | git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-keyvault.git | v1.1.2 |
+| moko_keyvault | git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-keyvault.git | v1.1.2 |
+| infox_keyvault | git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-keyvault.git | v1.1.2 |
+| prodapps_keyvault | git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-keyvault.git | v1.1.2 |
+
+
+
+<!-- markdownlint-disable MD033 -->
 ## Inputs
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_location"></a> [location](#input\_location) | Region for deployment | `string` | n/a | yes |
-| <a name="input_name"></a> [name](#input\_name) | Key vault name | `string` | n/a | yes |
-| <a name="input_sku_name"></a> [name](#input\_name) | sku name | `string` | n/a | yes |
-| <a name="input_private_dns_zone_ids"></a> [private\_dns\_zone\_ids](#input\_private\_dns\_zone\_ids) | List of Private DNS Zone IDs | `list(string)` | n/a | yes |
-| <a name="input_private_endpoint_name"></a> [private\_endpoint\_name](#input\_private\_endpoint\_name) | Name given for a private endpoint | `string` | n/a | yes |
-| <a name="input_public_network_access"></a> [public\_network\_access](#input\_public\_network\_access) | Should public network access be possible? | `bool` | n/a | yes |
-| <a name="input_resource_group_name"></a> [resource\_group\_name](#input\_resource\_group\_name) | Name of the Resource group | `string` | n/a | yes |
-| <a name="input_subnet_id"></a> [subnet\_id](#input\_subnet\_id) | ID given for a subnet to use to create private endpoint | `string` | n/a | yes |
-| <a name="input_tags"></a> [tags](#input\_tags) | Tags for resources | `map(string)` | n/a | yes |
-| <a name="input_soft_delete_retention_days"></a> [soft\_delete\_retention\_days] (#input\_soft\_delete\_retention\_days)  | No of days for retatining the deleted items in keyvault  | `number` | n/a | yes |
+| location | Region for deployment | `string` | `"West Europe"` | no |
+| resource_group_name | Name of the Resource group | `string` | n/a | yes |
+| tags | Tags for resources | `map(string)` | n/a | yes |
+|spoke_vnet_name | Name of the spoke VNET | `string` | n/a | yes |
+|spoke_subnet | Name of the spoke subnet | `string` | n/a | yes |
+|vaultcore-azure-net | Name of the private dns zone | `string` | n/a | yes |
+| iq4bus_keyvault_name | Name of keyvault | `string` | n/a | yes |
+| Managedidentity_name | Name of Managed identity | `string` | n/a | yes |
+| iq4bus_keyvault_sku_name | Name of keyvault sku | `string` | n/a | yes |
+| diq4bus_keyvault_soft_delete_retention_days | Number of retention days after soft delete | `number` | n/a | yes |
+| iq4bus_keyvault_private_endpoint_name | Name of Private Endpoint of keyvault | `string` | n/a | yes |
+| iq4bus_keyvault_public_network_access | Public network access of spoke keyvault | `bool` | n/a | yes |
+| iq4bus_keyvault_enable_rbac_authorization | enable_rbac_authorization of prodapps keyvault  | `bool` | yes | yes |
+| montaviz_keyvault_name | Name of keyvault | `string` | n/a | yes |
+| montaviz_keyvault_sku_name | Name of keyvault sku | `string` | n/a | yes |
+| montaviz_keyvault_soft_delete_retention_days | Number of retention days after soft delete | `number` | n/a | yes |
+| montaviz_keyvault_private_endpoint_name | Name of Private Endpoint of keyvault | `string` | n/a | yes |
+| montaviz_keyvault_public_network_access | Public network access of montaviz keyvault | `bool` | n/a | yes |
+| montaviz_keyvault_enable_rbac_authorization | enable_rbac_authorization of montaviz keyvault  | `bool` | yes | yes |
+| moko_keyvault_name | Name of keyvault | `string` | n/a | yes |
+| moko_keyvault_sku_name | Name of keyvault sku | `string` | n/a | yes |
+| moko_keyvault_soft_delete_retention_days | Number of retention days after soft delete | `number` | n/a | yes |
+| moko_keyvault_private_endpoint_name | Name of Private Endpoint of keyvault | `string` | n/a | yes |
+| moko_keyvault_public_network_access | Public network access of moko keyvault | `bool` | n/a | yes |
+| moko_keyvault_enable_rbac_authorization | enable_rbac_authorization of moko keyvault  | `bool` | yes | yes |
+| infox_keyvault_name | Name of keyvault | `string` | n/a | yes |
+| infox_keyvault_sku_name | Name of keyvault sku | `string` | n/a | yes |
+| infox_keyvault_soft_delete_retention_days | Number of retention days after soft delete | `number` | n/a | yes |
+| infox_keyvault_private_endpoint_name | Name of Private Endpoint of keyvault | `string` | n/a | yes |
+| infox_keyvault_public_network_access | Public network access of moko keyvault | `bool` | n/a | yes |
+| infox_keyvault_enable_rbac_authorization | enable_rbac_authorization of infox keyvault  | `bool` | yes | yes |
+| prodapps_keyvault_name | Name of keyvault | `string` | n/a | yes |
+| prodapps_keyvault_sku_name | Name of keyvault sku | `string` | n/a | yes |
+| prodapps_keyvault_soft_delete_retention_days | Number of retention days after soft delete | `number` | n/a | yes |
+| prodapps_keyvault_private_endpoint_name | Name of Private Endpoint of keyvault | `string` | n/a | yes |
+| prodapps_keyvault_public_network_access | Public network access of moko keyvault | `bool` | n/a | yes |
+| prodapps_keyvault_enable_rbac_authorization | enable_rbac_authorization of infox keyvault  | `bool` | yes | n/a |
+| role_definition_name | Name of the role defination name  | `string` | yes | n/a |
 
 
-<!-- END_TF_DOCS -->
+This table provides a comprehensive list of all input variables for the Terraform configuration, including their names, descriptions, types, default values (where applicable), and whether they are required or optional.
 
+## Outputs
+
+No outputs.
+<!-- markdownlint-disable MD047 -->
