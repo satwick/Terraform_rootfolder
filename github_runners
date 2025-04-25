@@ -1,0 +1,236 @@
+main.tf
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------
+####################
+# Provider section #
+####################
+
+terraform {
+  # backend "azurerm" {}
+
+
+  required_providers {
+
+    azurerm = {
+
+      source  = "hashicorp/azurerm"
+      version = "~>3.98.0"
+    }
+  }
+}
+
+provider "azurerm" {
+  skip_provider_registration = "true"
+  features {
+  }
+}
+
+#####################
+# Data section      #
+#####################
+
+data "azurerm_resource_group" "rg" {
+  name = var.resource_group_name
+}
+
+data "azurerm_resource_group" "storage_account_rg" {
+  name = var.storage_account_rg
+}
+
+data "azurerm_virtual_network" "vnet" {
+  name                = var.vnet_name
+  resource_group_name = data.azurerm_resource_group.rg.name
+}
+
+data "azurerm_subnet" "subnet" {
+  name                 = var.subnet_name
+  virtual_network_name = data.azurerm_virtual_network.vnet.name
+  resource_group_name  = data.azurerm_resource_group.rg.name
+}
+
+data "azurerm_storage_account" "storage" {
+  name                = var.storage_account_name
+  resource_group_name = data.azurerm_resource_group.storage_account_rg.name
+}
+
+#####################
+# Module section    #
+#####################
+
+module "github_runner" {
+  source = "../../module/github_runner"
+
+  resource_group_name                   = data.azurerm_resource_group.rg.name
+  location                              = data.azurerm_resource_group.rg.location
+  subnet_id                             = data.azurerm_subnet.subnet.id
+  vm_name                               = var.vm_name
+  admin_username                        = var.admin_username
+  admin_password                        = var.admin_password
+  storage_account_primary_blob_endpoint = data.azurerm_storage_account.storage.primary_blob_endpoint
+
+  custom_data_path = var.custom_data_path
+
+  tags = {
+    os   = "ubuntu"
+    cost = "iq4bus"
+    env  = "build"
+  }
+
+}
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+variables.tf
+-------------------------------------------------------------------------
+# Common 
+
+variable "resource_group_name" {
+  description = "Name of the Resource group"
+  type        = string
+}
+
+variable "storage_account_rg" {
+  description = "Name of the storage account Resource group"
+  type        = string
+}
+
+
+# Exisiting Vnet, Subnet , & storage account 
+
+variable "vnet_name" {
+  description = "Name of the spoke VNET"
+  type        = string
+}
+
+variable "subnet_name" {
+  description = "Name of the spoke subnet"
+  type        = string
+}
+
+variable "storage_account_name" {
+  description = "Name of the spoke storage_account"
+  type        = string
+}
+
+# Runner VM
+
+variable "vm_name" {
+  description = "The name of the Linux Virtual Machine for the github runner"
+  type        = string
+}
+
+variable "admin_username" {
+  description = "The admin username for Linux runner Machine"
+  type        = string
+}
+
+variable "admin_password" {
+  description = "The password for Linux runner Machine"
+  type        = string
+  # sensitive   = true
+}
+
+# To run this custom data path, the Cloud Standard script needs to be added to the module folder
+variable "custom_data_path" {
+  description = "The Base64-Encoded Custom Data path which should be used for this Virtual Machine"
+  type        = string
+}
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+runners.tfvar
+-----------------------------------------
+# Existing build-RG, Vnet-name, Subnet-name, Storage account
+
+resource_group_name  = "dflbus-shared-build-rg"
+storage_account_rg   = "dflbus-dev-rg"
+vnet_name            = "shared-build-vnet"
+subnet_name          = "build"
+storage_account_name = "dflbusiq4busdev"
+
+
+# Linux VM
+
+vm_name        = "github-runner-terraform"
+admin_username = "azuser"
+admin_password = "S1kbCxsVTC94"
+# The build cloud.sh should be in modules and update path in tfvars files accordingly
+custom_data_path = "../built-cloud-init-runner.sh"
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#!/bin/bash 
+# unite-create-build-buildx-node20.sh
+# v20.03.2024-1 (option for swap file - commented out.)
+# cloud init script for built server in "shared built" spoke VNet
+# use "az create vm ... --user-data built-cloud-init-buildx-node20.sh ..."
+# this script will be run "as root" on the new VM, the 1st time it boots.
+#
+# Stuff used for every VM
+date > /tmp/cloud-init.log 2> /tmp/cloud-init.err
+# -- add 4GB of swap file (option)
+ sudo fallocate -l 4G /mnt/swapfile
+ sudo chmod 600 /mnt/swapfile
+ sudo mkswap /mnt/swapfile
+ sudo swapon /mnt/swapfile
+# -- reactivate swap on next reboot via crontab @reboot command
+crontab<<EOF
+$(crontab -l)
+@reboot sudo swapon /swapfile > /tmp/reboot.log 2> /tmp/reboot.err
+EOF
+# --
+apt-get update >> /tmp/cloud-init.log  2>> /tmp/cloud-init.err
+apt-get upgrade -y >> /tmp/cloud-init.log 2>> /tmp/cloud-init.err
+# add some tools
+apt-get install -y fail2ban pigz buffer screen socat -y >> /tmp/cloud-init.log 2>> /tmp/cloud-init.err
+# add some security
+apt-get install -y unattended-upgrades >> /tmp/cloud-init.log 2>> /tmp/cloud-init.err
+# -- add project related (e.g. git actions) stuff here 
+# Stuff used for built VM
+# Install jdk 11
+apt-get install openjdk-11-jdk -y >> /tmp/cloud-init.log 2>> /tmp/cloud-init.err
+
+#--MAVEN-- https://linuxize.com/post/how-to-install-apache-maven-on-ubuntu-18-04/
+apt-get install maven -y >> /tmp/cloud-init.log 2>> /tmp/cloud-init.err
+
+#--GIT-- https://www.atlassian.com/git/tutorials/install-git#linux
+apt-get install git -y >> /tmp/cloud-init.log 2>> /tmp/cloud-init.err
+
+#--Install Node.js and npm from the Ubuntu repository-- https://linuxize.com/post/how-to-install-node-js-on-ubuntu-20-04/
+#//followed using nvm//
+runuser -l azuser -c  'curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash'
+#--Not installing nodejs but installing NVM(node version manager)
+
+#--DOCKER-- https://www.simplilearn.com/tutorials/docker-tutorial/how-to-install-docker-on-ubuntu
+apt-get remove docker docker-engine docker.io -y >> /tmp/cloud-init.log 2>> /tmp/cloud-init.err
+apt-get update -y >> /tmp/cloud-init.log 2>> /tmp/cloud-init.err
+apt-get install docker.io -y >> /tmp/cloud-init.log 2>> /tmp/cloud-init.err
+snap install docker
+sudo chmod 666 /var/run/docker.sock
+
+# Install use kublectl with snap.
+snap install kubectl --classic
+
+#--helm package manager--
+curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+chmod 700 get_helm.sh
+./get_helm.sh
+
+#--adding /etc/hosts file--
+
+      
+echo "JAVA Version" >> /tmp/versioninfo.log
+java --version >> /tmp/versioninfo.log
+echo "MAVEN Version" >> /tmp/versioninfo.log
+mvn -version >> /tmp/versioninfo.log
+echo "GIT Version" >> /tmp/versioninfo.log
+git --version >> /tmp/versioninfo.log
+echo "nvm Version" >> /tmp/versioninfo.log
+nvm --version >> /tmp/versioninfo.log
+#echo "node Version" >> /tmp/versioninfo.log
+#node --version >> /tmp/versioninfo.log
+#echo "npm Version" >> /tmp/versioninfo.log
+#npm --version >> /tmp/versioninfo.log
+echo "DOCKER Version" >> /tmp/versioninfo.log
+docker --version >> /tmp/versioninfo.log
+echo "KUBECTL Version" >> /tmp/versioninfo.log
+kubectl version >> /tmp/versioninfo.log
+echo "HELM Version" >> /tmp/versioninfo.log
+helm version >> /tmp/versioninfo.log
+
+date >> /tmp/cloud-init.log 2>> /tmp/cloud-init.err
+exit 0
