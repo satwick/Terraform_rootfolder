@@ -1,0 +1,13 @@
+│ Error: Invalid value for input variable
+│ 
+│   on main.tf line 296, in module "trex_keyvault":
+│  296:   keyvault_network_acls = {
+│  297:     bypass         = var.keyvault_network_acls.bypass
+│  298:     default_action = var.keyvault_network_acls.default_action
+│  299:     ip_rules       = var.keyvault_network_acls.ip_rules
+│  300: }
+│ 
+│ The given value is not suitable for
+│ module.trex_keyvault.var.keyvault_network_acls declared at
+│ .terraform/modules/trex_keyvault/variables.tf:62,1-33: attribute
+│ "virtual_network_subnet_ids" is required.
