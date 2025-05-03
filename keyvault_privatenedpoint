@@ -7,14 +7,49 @@ locals {
     vaultcore-azure-net = "privatelink.vaultcore.azure.net"
   }
 
+  keyvault_modules = {
+    iq4bus = {
+      id                    = module.iq4bus_keyvault.id
+      private_endpoint_name = var.iq4bus_keyvault_intprivate_endpoint_name
+      dns_zone_id           = data.azurerm_private_dns_zone.intvaultcore-azure-net.id
+    },
+    montaviz = {
+      id                    = module.montaviz_keyvault.id
+      private_endpoint_name = var.montaviz_keyvault_intprivate_endpoint_name
+      dns_zone_id           = data.azurerm_private_dns_zone.intvaultcore-azure-net.id
+    }
+
+    moko = {
+      id                    = module.moko_keyvault.id
+      private_endpoint_name = var.moko_keyvault_intprivate_endpoint_name
+      dns_zone_id           = data.azurerm_private_dns_zone.intvaultcore-azure-net.id
+    }
+
+    infox = {
+      id                    = module.infox_keyvault.id
+      private_endpoint_name = var.infox_keyvault_intprivate_endpoint_name
+      dns_zone_id           = data.azurerm_private_dns_zone.intvaultcore-azure-net.id
+    }
+
+    prodapps = {
+      id                    = module.prodapps_keyvault.id
+      private_endpoint_name = var.prodapps_keyvault_intprivate_endpoint_name
+      dns_zone_id           = data.azurerm_private_dns_zone.intvaultcore-azure-net.id
+    }
+
+    trex = {
+      id                    = module.trex_keyvault.id
+      private_endpoint_name = var.trex_keyvault_intprivate_endpoint_name
+      dns_zone_id           = data.azurerm_private_dns_zone.intvaultcore-azure-net.id
+    }
+  }
+
+
   # List of keyvaults for easier managed identity assignment
-  keyvaults = [
-    module.iq4bus_keyvault.id,
-    # module.montaviz_keyvault.id,
-    # module.moko_keyvault.id,
-    # module.infox_keyvault.id,
-    # module.prodapps_keyvault.id
-  ]
+  keyvaults_map = {
+    for name, kv in local.keyvault_modules : name => kv.id
+  }
+
 }
 
 
@@ -23,18 +58,17 @@ locals {
 ####################
 
 terraform {
-  # backend "azurerm" {}
+  backend "azurerm" {}
 
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~>3.73.0"
+      version = "~>3.98.0"
     }
   }
 }
 
 provider "azurerm" {
-  skip_provider_registration = "true"
   features {
     key_vault {
       purge_soft_deleted_secrets_on_destroy = true
@@ -73,6 +107,7 @@ data "azurerm_private_dns_zone" "vaultcore-azure-net" {
   resource_group_name = data.azurerm_resource_group.spoke.name
 }
 
+# https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/data-sources/resource_group
 data "azurerm_resource_group" "spokeint" {
   name = var.spokeint_resource_group
 }
@@ -89,6 +124,13 @@ data "azurerm_subnet" "support_int_spoke" {
   virtual_network_name = data.azurerm_virtual_network.spoke_vnet_int.name
   resource_group_name  = data.azurerm_resource_group.spokeint.name
 }
+
+# https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/data-sources/private_dns_zone
+data "azurerm_private_dns_zone" "intvaultcore-azure-net" {
+  name                = local.private_dns_zones["vaultcore-azure-net"]
+  resource_group_name = data.azurerm_resource_group.spokeint.name
+}
+
 #####################
 # Resources section #
 #####################
@@ -108,8 +150,12 @@ resource "azurerm_user_assigned_identity" "keyvault_identity" {
 }
 
 
+#####################
+# Module section 		#
+#####################
+
 module "iq4bus_keyvault" {
-  source = "../../module/keyvault"
+  source = "git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-keyvault.git?ref=v1.2.0"
 
   name                       = var.iq4bus_keyvault_name
   location                   = azurerm_resource_group.keyvaultrg.location
@@ -124,111 +170,174 @@ module "iq4bus_keyvault" {
   subnet_id             = data.azurerm_subnet.support_spoke.id
   public_network_access = var.iq4bus_keyvault_public_network_access
   keyvault_depends_on   = [azurerm_resource_group.keyvaultrg]
+  keyvault_network_acls = {
+    bypass         = var.keyvault_network_acls.bypass
+    default_action = var.keyvault_network_acls.default_action
+    ip_rules       = var.keyvault_network_acls.ip_rules
+    virtual_network_subnet_ids = [
+      data.azurerm_subnet.support_spoke.id,
+      data.azurerm_subnet.support_int_spoke.id
+    ]
+  }
 }
 
-#https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/private_endpoint
-resource "azurerm_private_endpoint" "endpoint" {
-  name                          = var.int_private_endpoint_name
-  resource_group_name           = data.azurerm_resource_group.spokeint.name
-  location                      = var.intrg_location
-  subnet_id                     = data.azurerm_subnet.support_int_spoke.id
-  custom_network_interface_name = "${var.int_private_endpoint_name}-nic"
+module "montaviz_keyvault" {
+  source = "git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-keyvault.git?ref=v1.2.0"
 
-  private_dns_zone_group {
-    name = "default"
-    private_dns_zone_ids = [
-      data.azurerm_private_dns_zone.vaultcore-azure-net.id
+  name                       = var.montaviz_keyvault_name
+  location                   = azurerm_resource_group.keyvaultrg.location
+  resource_group_name        = azurerm_resource_group.keyvaultrg.name
+  sku_name                   = var.montaviz_keyvault_sku_name
+  soft_delete_retention_days = var.montaviz_keyvault_soft_delete_retention_days
+  private_endpoint_name      = var.montaviz_keyvault_private_endpoint_name
+  enable_rbac_authorization  = var.montaviz_keyvault_enable_rbac_authorization
+  private_dns_zone_ids = [
+    data.azurerm_private_dns_zone.vaultcore-azure-net.id
+  ]
+  subnet_id             = data.azurerm_subnet.support_spoke.id
+  public_network_access = var.montaviz_keyvault_public_network_access
+  keyvault_depends_on   = [module.iq4bus_keyvault]
+  keyvault_network_acls = {
+    bypass         = var.keyvault_network_acls.bypass
+    default_action = var.keyvault_network_acls.default_action
+    ip_rules       = var.keyvault_network_acls.ip_rules
+    virtual_network_subnet_ids = [
+      data.azurerm_subnet.support_spoke.id,
+      data.azurerm_subnet.support_int_spoke.id
     ]
-
   }
+}
+
+ module "moko_keyvault" {
+   source = "git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-keyvault.git?ref=v1.2.0"
+
+  name                       = var.moko_keyvault_name
+  location                   = azurerm_resource_group.keyvaultrg.location
+  resource_group_name        = azurerm_resource_group.keyvaultrg.name
+  sku_name                   = var.moko_keyvault_sku_name
+  soft_delete_retention_days = var.moko_keyvault_soft_delete_retention_days
+  private_endpoint_name      = var.moko_keyvault_private_endpoint_name
+  enable_rbac_authorization  = var.moko_keyvault_enable_rbac_authorization
+  private_dns_zone_ids = [
+    data.azurerm_private_dns_zone.vaultcore-azure-net.id
+  ]
+  subnet_id             = data.azurerm_subnet.support_spoke.id
+  public_network_access = var.moko_keyvault_public_network_access
+  keyvault_depends_on   = [module.montaviz_keyvault]
+    keyvault_network_acls = {
+    bypass         = var.keyvault_network_acls.bypass
+    default_action = var.keyvault_network_acls.default_action
+    ip_rules       = var.keyvault_network_acls.ip_rules
+}
+}
+
+module "infox_keyvault" {
+  source = "git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-keyvault.git?ref=v1.2.0"
+
+  name                       = var.infox_keyvault_name
+  location                   = azurerm_resource_group.keyvaultrg.location
+  resource_group_name        = azurerm_resource_group.keyvaultrg.name
+  sku_name                   = var.infox_keyvault_sku_name
+  soft_delete_retention_days = var.infox_keyvault_soft_delete_retention_days
+  private_endpoint_name      = var.infox_keyvault_private_endpoint_name
+  enable_rbac_authorization  = var.infox_keyvault_enable_rbac_authorization
+  private_dns_zone_ids = [
+    data.azurerm_private_dns_zone.vaultcore-azure-net.id
+  ]
+  subnet_id             = data.azurerm_subnet.support_spoke.id
+  public_network_access = var.infox_keyvault_public_network_access
+  keyvault_depends_on   = [module.moko_keyvault]
+      keyvault_network_acls = {
+    bypass         = var.keyvault_network_acls.bypass
+    default_action = var.keyvault_network_acls.default_action
+    ip_rules       = var.keyvault_network_acls.ip_rules
+}
+}
+
+module "prodapps_keyvault" {
+  source = "git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-keyvault.git?ref=v1.2.0"
+
+  name                       = var.prodapps_keyvault_name
+  location                   = azurerm_resource_group.keyvaultrg.location
+  resource_group_name        = azurerm_resource_group.keyvaultrg.name
+  sku_name                   = var.prodapps_keyvault_sku_name
+  soft_delete_retention_days = var.prodapps_keyvault_soft_delete_retention_days
+  private_endpoint_name      = var.prodapps_keyvault_private_endpoint_name
+  enable_rbac_authorization  = var.prodapps_keyvault_enable_rbac_authorization
+  private_dns_zone_ids = [
+    data.azurerm_private_dns_zone.vaultcore-azure-net.id
+  ]
+  subnet_id             = data.azurerm_subnet.support_spoke.id
+  public_network_access = var.prodapps_keyvault_public_network_access
+  keyvault_depends_on   = [module.infox_keyvault]
+  keyvault_network_acls = {
+    bypass         = var.keyvault_network_acls.bypass
+    default_action = var.keyvault_network_acls.default_action
+    ip_rules       = var.keyvault_network_acls.ip_rules
+}
+}
+
+module "trex_keyvault" {
+  source = "git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-keyvault.git?ref=v1.2.0"
+
+  name                       = var.trex_keyvault_name
+  location                   = azurerm_resource_group.keyvaultrg.location
+  resource_group_name        = azurerm_resource_group.keyvaultrg.name
+  sku_name                   = var.trex_keyvault_sku_name
+  soft_delete_retention_days = var.trex_keyvault_soft_delete_retention_days
+  private_endpoint_name      = var.trex_keyvault_private_endpoint_name
+  enable_rbac_authorization  = var.trex_keyvault_enable_rbac_authorization
+  private_dns_zone_ids = [
+    data.azurerm_private_dns_zone.vaultcore-azure-net.id
+  ]
+  subnet_id             = data.azurerm_subnet.support_spoke.id
+  public_network_access = var.trex_keyvault_public_network_access
+  keyvault_depends_on   = [module.prodapps_keyvault]
+  keyvault_network_acls = {
+    bypass         = var.keyvault_network_acls.bypass
+    default_action = var.keyvault_network_acls.default_action
+    ip_rules       = var.keyvault_network_acls.ip_rules
+}
+}
+
+
+
+##############################
+# Private Endpoint Resource  #
+##############################
+
+#https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/private_endpoint
+resource "azurerm_private_endpoint" "keyvault_endpoints" {
+  for_each                      = local.keyvault_modules
+  name                          = each.value.private_endpoint_name
+  location                      = var.intrg_location
+  resource_group_name           = data.azurerm_resource_group.spokeint.name
+  subnet_id                     = data.azurerm_subnet.support_int_spoke.id
+  custom_network_interface_name = "${each.value.private_endpoint_name}-nic"
 
   private_service_connection {
-    name                           = "${var.int_private_endpoint_name}psc"
-    private_connection_resource_id = module.iq4bus_keyvault.id
+    name                           = "${each.value.private_endpoint_name}-psc"
+    private_connection_resource_id = each.value.id
     is_manual_connection           = false
     subresource_names              = ["vault"]
   }
+
+  private_dns_zone_group {
+    name                 = "default"
+    private_dns_zone_ids = [each.value.dns_zone_id]
+  }
 }
 
-
-# module "montaviz_keyvault" {
-#   source = "git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-keyvault.git?ref=v1.1.2"
-
-#   name                       = var.montaviz_keyvault_name
-#   location                   = azurerm_resource_group.keyvaultrg.location
-#   resource_group_name        = azurerm_resource_group.keyvaultrg.name
-#   sku_name                   = var.montaviz_keyvault_sku_name
-#   soft_delete_retention_days = var.montaviz_keyvault_soft_delete_retention_days
-#   private_endpoint_name      = var.montaviz_keyvault_private_endpoint_name
-#   enable_rbac_authorization  = var.montaviz_keyvault_enable_rbac_authorization
-#   private_dns_zone_ids = [
-#     data.azurerm_private_dns_zone.vaultcore-azure-net.id
-#   ]
-#   subnet_id             = data.azurerm_subnet.support_spoke.id
-#   public_network_access = var.montaviz_keyvault_public_network_access
-#   keyvault_depends_on   = [module.iq4bus_keyvault]
-# }
-
-# module "moko_keyvault" {
-#   source = "git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-keyvault.git?ref=v1.1.2"
-
-#   name                       = var.moko_keyvault_name
-#   location                   = azurerm_resource_group.keyvaultrg.location
-#   resource_group_name        = azurerm_resource_group.keyvaultrg.name
-#   sku_name                   = var.moko_keyvault_sku_name
-#   soft_delete_retention_days = var.moko_keyvault_soft_delete_retention_days
-#   private_endpoint_name      = var.moko_keyvault_private_endpoint_name
-#   enable_rbac_authorization  = var.moko_keyvault_enable_rbac_authorization
-#   private_dns_zone_ids = [
-#     data.azurerm_private_dns_zone.vaultcore-azure-net.id
-#   ]
-#   subnet_id             = data.azurerm_subnet.support_spoke.id
-#   public_network_access = var.moko_keyvault_public_network_access
-#   keyvault_depends_on   = [module.montaviz_keyvault]
-# }
-
-# module "infox_keyvault" {
-#   source = "git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-keyvault.git?ref=v1.1.2"
-
-#   name                       = var.infox_keyvault_name
-#   location                   = azurerm_resource_group.keyvaultrg.location
-#   resource_group_name        = azurerm_resource_group.keyvaultrg.name
-#   sku_name                   = var.infox_keyvault_sku_name
-#   soft_delete_retention_days = var.infox_keyvault_soft_delete_retention_days
-#   private_endpoint_name      = var.infox_keyvault_private_endpoint_name
-#   enable_rbac_authorization  = var.infox_keyvault_enable_rbac_authorization
-#   private_dns_zone_ids = [
-#     data.azurerm_private_dns_zone.vaultcore-azure-net.id
-#   ]
-#   subnet_id             = data.azurerm_subnet.support_spoke.id
-#   public_network_access = var.infox_keyvault_public_network_access
-#   keyvault_depends_on   = [module.moko_keyvault]
-# }
-
-# module "prodapps_keyvault" {
-#   source = "git::https://git.t3.daimlertruck.com/DFL-BUS/tf-module-keyvault.git?ref=v1.1.2"
-
-#   name                       = var.prodapps_keyvault_name
-#   location                   = azurerm_resource_group.keyvaultrg.location
-#   resource_group_name        = azurerm_resource_group.keyvaultrg.name
-#   sku_name                   = var.prodapps_keyvault_sku_name
-#   soft_delete_retention_days = var.prodapps_keyvault_soft_delete_retention_days
-#   private_endpoint_name      = var.prodapps_keyvault_private_endpoint_name
-#   enable_rbac_authorization  = var.prodapps_keyvault_enable_rbac_authorization
-#   private_dns_zone_ids = [
-#     data.azurerm_private_dns_zone.vaultcore-azure-net.id
-#   ]
-#   subnet_id             = data.azurerm_subnet.support_spoke.id
-#   public_network_access = var.prodapps_keyvault_public_network_access
-#   keyvault_depends_on   = [module.infox_keyvault]
-# }
+###############################
+# Role Assignment             #
+###############################
 
 # https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/role_assignment
 resource "azurerm_role_assignment" "keyvault_secret_user" {
-  for_each             = toset([for i, v in local.keyvaults : tostring(i)])
-  scope                = local.keyvaults[tonumber(each.key)]
+  for_each             = local.keyvaults_map
+  scope                = each.value
   role_definition_name = var.role_definition_name
   principal_id         = azurerm_user_assigned_identity.keyvault_identity.principal_id
 
-  depends_on = [module.iq4bus_keyvault]
+  depends_on = [module.trex_keyvault]
 }
