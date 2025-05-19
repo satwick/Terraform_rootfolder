@@ -1,0 +1,81 @@
+# Module documentation
+
+## Usage
+
+Basic usage of this module is as follows:
+
+```hcl
+module "example" {
+       source  = "<module-path>"
+  
+     # Required variables
+       eventhubs  = 
+       name  = 
+       private_dns_zone_ids  = 
+       private_endpoint_name  = 
+       resource_group_name  = 
+       subnet_id  = 
+       tags  = 
+  
+     # Optional variables
+       eventhub_capacity  = 1
+       eventhub_sku  = "Standard"
+       location  = "West Europe"
+       public_network_access_enabled  = false
+}
+```
+
+## Providers
+
+| Name | Version |
+|------|---------|
+| azurerm | n/a |
+
+## Resources
+
+| Name | Type |
+|------|------|
+| [azurerm_eventhub.eventhubs](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/eventhub) | resource |
+| [azurerm_eventhub_authorization_rule.rules](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/eventhub_authorization_rule) | resource |
+| [azurerm_eventhub_consumer_group.adx](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/eventhub_consumer_group) | resource |
+| [azurerm_eventhub_namespace.namespace](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/eventhub_namespace) | resource |
+| [azurerm_private_endpoint.endpoint](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/private_endpoint) | resource |
+
+## Modules
+
+No modules.
+
+<!-- markdownlint-disable MD033 -->
+## Inputs
+
+| Name | Description | Type | Default | Required |
+|------|-------------|------|---------|:--------:|
+| eventhub_capacity | Capacity for Event Hub | `number` | `1` | no |
+| eventhub_sku | SKU for Event Hub | `string` | `"Standard"` | no |
+| eventhubs | List of Event Hubs | <pre>map(object({<br>    name              = string<br>    message_retention = number<br>    partition_count   = number<br>  }))</pre> | n/a | yes |
+| location | Region for deployment | `string` | `"West Europe"` | no |
+| name | Name of Event Hub Namespace | `string` | n/a | yes |
+| private_dns_zone_ids | List of Private DNS Zone IDs | `list(string)` | n/a | yes |
+| private_endpoint_name | Name of storage private endpoint | `string` | n/a | yes |
+| public_network_access_enabled | Enable or disable public network access | `bool` | `false` | no |
+| resource_group_name | Name of the Resource group | `string` | n/a | yes |
+| subnet_id | id given for a subnet to use to create private endpoint | `string` | n/a | yes |
+| tags | Tags for resources | `map(string)` | n/a | yes |
+
+## Outputs
+
+| Name | Description |
+|------|-------------|
+| default_primary_connection_string | Primary connection string for connecting to the Event Hub Namespace |
+| default_primary_key | Primary key for connecting to the Event Hub Namespace |
+| default_secondary_connection_string | Secondary connection string for connecting to the Event Hub Namespace |
+| default_secondary_key | Secondary key for connecting to the Event Hub Namespace |
+| event_hub_ids | IDs of the deployed Event Hubs |
+| event_hub_namespace_id | The ID of the deployed Event Hub Namespace |
+| event_hub_namespace_name | The Name of the deployed Event Hub Namespace |
+| eventhub_authorization_rules | Authorization rules for the Event Hub Namespace |
+| eventhub_authorization_rules_primary_connection_string | Primary connection strings for the Event Hub authorization rules |
+| eventhub_authorization_rules_primary_key | Primary keys for the Event Hub authorization rules |
+| eventhub_consumer_groups | Consumer groups for the Event Hub Namespace |
+| eventhub_private_endpoint_id | The ID of the deployed Event Hub Private Endpoint |
+<!-- markdownlint-disable MD047 -->
